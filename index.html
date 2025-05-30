@@ -34,7 +34,7 @@
   </div>
 
   <script>
-    function parseAndRender(inputId, tableId, shouldSort = false) {
+    function parseAndRender(inputId, tableId, shouldSort = false, useTieRanking = false) {
       const input = document.getElementById(inputId).value.trim();
       const rows = input.split('\n').map(row => row.split('\t'));
       const table = document.getElementById(tableId);
@@ -48,17 +48,21 @@
         return { index: idx, cols, sum };
       });
 
-      // 排序並處理名次（允許分數相同名次相同）
       const sorted = [...dataWithSum].sort((a, b) => b.sum - a.sum);
-      let currentRank = 1;
-      sorted.forEach((row, i) => {
-        if (i > 0 && row.sum === sorted[i - 1].sum) {
-          row.rank = sorted[i - 1].rank;
-        } else {
-          row.rank = currentRank;
-        }
-        currentRank = i + 2;
-      });
+
+      if (useTieRanking) {
+        let currentRank = 1;
+        sorted.forEach((row, i) => {
+          if (i > 0 && row.sum === sorted[i - 1].sum) {
+            row.rank = sorted[i - 1].rank;
+          } else {
+            row.rank = currentRank;
+          }
+          currentRank = i + 2;
+        });
+      } else {
+        sorted.forEach((row, i) => row.rank = i + 1);
+      }
 
       // 儲存供估分使用
       window[tableId + 'Data'] = sorted;
@@ -90,7 +94,8 @@
         tr.appendChild(sumTd);
 
         const rankTd = document.createElement('td');
-        rankTd.textContent = row.rank;
+        const found = sorted.find(r => r.index === row.index);
+        rankTd.textContent = found ? found.rank : '';
         rankTd.className = 'rank-cell';
         tr.appendChild(rankTd);
 
@@ -98,8 +103,13 @@
       });
     }
 
-    document.getElementById('leftInput').addEventListener('input', () => parseAndRender('leftInput', 'leftTable', false));
-    document.getElementById('rightInput').addEventListener('input', () => parseAndRender('rightInput', 'rightTable', true));
+    document.getElementById('leftInput').addEventListener('input', () =>
+      parseAndRender('leftInput', 'leftTable', false, true)
+    );
+
+    document.getElementById('rightInput').addEventListener('input', () =>
+      parseAndRender('rightInput', 'rightTable', true, false)
+    );
 
     function estimateScore() {
       const rank = parseInt(document.getElementById('rankInput').value);
