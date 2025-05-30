@@ -48,14 +48,21 @@
         return { index: idx, cols, sum };
       });
 
-      // 排序取得名次
+      // 排序並處理名次（允許分數相同名次相同）
       const sorted = [...dataWithSum].sort((a, b) => b.sum - a.sum);
-      sorted.forEach((row, i) => row.rank = i + 1);
+      let currentRank = 1;
+      sorted.forEach((row, i) => {
+        if (i > 0 && row.sum === sorted[i - 1].sum) {
+          row.rank = sorted[i - 1].rank;
+        } else {
+          row.rank = currentRank;
+        }
+        currentRank = i + 2;
+      });
 
-      // 儲存資料供估分使用
+      // 儲存供估分使用
       window[tableId + 'Data'] = sorted;
 
-      // 決定渲染順序
       const renderData = shouldSort ? sorted : dataWithSum;
 
       // 標題列
@@ -97,15 +104,19 @@
     function estimateScore() {
       const rank = parseInt(document.getElementById('rankInput').value);
       const rightData = window['rightTableData'];
-      if (!rightData || isNaN(rank) || rank < 2 || rank > rightData.length - 1) {
-        document.getElementById('estimateResult').textContent = '請輸入有效的排名（2 到 ' + (rightData.length - 1) + '）';
+      if (!rightData || isNaN(rank)) {
+        document.getElementById('estimateResult').textContent = '請輸入有效的排名';
         return;
       }
 
       const prev = rightData.find(r => r.rank === rank - 1);
       const next = rightData.find(r => r.rank === rank + 1);
-      const avg = ((prev?.sum || 0) + (next?.sum || 0)) / 2;
+      if (!prev || !next) {
+        document.getElementById('estimateResult').textContent = '無法估分，請確認排名範圍';
+        return;
+      }
 
+      const avg = (prev.sum + next.sum) / 2;
       document.getElementById('estimateResult').textContent = `估分：${avg.toFixed(2)}`;
     }
   </script>
