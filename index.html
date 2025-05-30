@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>估分工具</title>
+  <style>
+    body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; }
+    .panel { flex: 1; display: flex; flex-direction: column; }
+    textarea { width: 100%; height: 300px; font-family: monospace; white-space: pre; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
+    .index-cell { background-color: #f0f8ff; font-weight: bold; }
+    .sum-cell { background-color: #fff8dc; }
+    .rank-cell { background-color: #e0ffe0; }
+    .controls { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2>練習區</h2>
+    <textarea id="leftInput" placeholder="貼上表格數據（以Tab分隔）"></textarea>
+    <table id="leftTable"></table>
+  </div>
+
+  <div class="panel">
+    <h2>測驗區</h2>
+    <textarea id="rightInput" placeholder="貼上表格數據（以Tab分隔）"></textarea>
+    <table id="rightTable"></table>
+    <div class="controls">
+      <button onclick="estimateScore()">估分</button>
+      <input type="number" id="rankInput" placeholder="練習總分排名">
+      <div id="estimateResult"></div>
+    </div>
+  </div>
+
+  <script>
+    function parseAndRender(inputId, tableId, shouldSort = false) {
+      const input = document.getElementById(inputId).value.trim();
+      const rows = input.split('\n').map(row => row.split('\t'));
+      const table = document.getElementById(tableId);
+      table.innerHTML = '';
+
+      if (rows.length === 0) return;
+
+      const dataWithSum = rows.map((cols, idx) => {
+        const nums = cols.map(Number).filter(n => !isNaN(n));
+        const sum = nums.reduce((a, b) => a + b, 0);
+        return { index: idx, cols, sum };
+      });
+
+      // 排序取得名次
+      const sorted = [...dataWithSum].sort((a, b) => b.sum - a.sum);
+      sorted.forEach((row, i) => row.rank = i + 1);
+
+      // 儲存資料供估分使用
+      window[tableId + 'Data'] = sorted;
+
+      // 決定渲染順序
+      const renderData = shouldSort ? sorted : dataWithSum;
+
+      // 標題列
+      const header = document.createElement('tr');
+      header.innerHTML = `<th>序號</th>${rows[0].map((_, i) => `<th>欄${i + 1}</th>`).join('')}<th>加總</th><th>名次</th>`;
+      table.appendChild(header);
+
+      renderData.forEach((row, i) => {
+        const tr = document.createElement('tr');
+
+        const indexTd = document.createElement('td');
+        indexTd.textContent = i + 1;
+        indexTd.className = 'index-cell';
+        tr.appendChild(indexTd);
+
+        row.cols.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+
+        const sumTd = document.createElement('td');
+        sumTd.textContent = row.sum;
+        sumTd.className = 'sum-cell';
+        tr.appendChild(sumTd);
+
+        const rankTd = document.createElement('td');
+        rankTd.textContent = row.rank;
+        rankTd.className = 'rank-cell';
+        tr.appendChild(rankTd);
+
+        table.appendChild(tr);
+      });
+    }
+
+    document.getElementById('leftInput').addEventListener('input', () => parseAndRender('leftInput', 'leftTable', false));
+    document.getElementById('rightInput').addEventListener('input', () => parseAndRender('rightInput', 'rightTable', true));
+
+    function estimateScore() {
+      const rank = parseInt(document.getElementById('rankInput').value);
+      const rightData = window['rightTableData'];
+      if (!rightData || isNaN(rank) || rank < 2 || rank > rightData.length - 1) {
+        document.getElementById('estimateResult').textContent = '請輸入有效的排名（2 到 ' + (rightData.length - 1) + '）';
+        return;
+      }
+
+      const prev = rightData.find(r => r.rank === rank - 1);
+      const next = rightData.find(r => r.rank === rank + 1);
+      const avg = ((prev?.sum || 0) + (next?.sum || 0)) / 2;
+
+      document.getElementById('estimateResult').textContent = `估分：${avg.toFixed(2)}`;
+    }
+  </script>
+</body>
+</html>
