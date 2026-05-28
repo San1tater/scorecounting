@@ -13,6 +13,9 @@
     .sum-cell { background-color: #fff8dc; }
     .rank-cell { background-color: #e0ffe0; }
     .controls { margin-top: 10px; }
+    .absent-row td {
+      border: 2px solid red !important;
+    }
   </style>
 </head>
 <body>
@@ -34,15 +37,55 @@
   </div>
 
   <script>
+    let absentIndices = new Set();
+    let rightOriginalRowCount = 0;
+
+    function updateAbsentIndices() {
+      const input = document.getElementById('rightInput').value;
+      if (input.trim() === '') {
+        absentIndices.clear();
+        rightOriginalRowCount = 0;
+        return;
+      }
+      const rows = input.split('\n').map(row => row.split('\t'));
+      rightOriginalRowCount = rows.length;
+      absentIndices.clear();
+      rows.forEach((cols, idx) => {
+        const hasValid = cols.some(cell => {
+          const trimmed = cell.trim();
+          if (trimmed === '') return false;
+          const num = Number(trimmed);
+          return !isNaN(num);
+        });
+        if (!hasValid) {
+          absentIndices.add(idx);
+        }
+      });
+    }
+
+    function isAbsent(index) {
+      if (index >= rightOriginalRowCount) return true;
+      return absentIndices.has(index);
+    }
+
     function parseAndRender(inputId, tableId, shouldSort = false, useTieRanking = false) {
-      const input = document.getElementById(inputId).value.trim();
-      let rows = input.split('\n').map(row => row.split('\t'));
+      const rawInput = document.getElementById(inputId).value;
+      const input = rawInput.trim();
       const table = document.getElementById(tableId);
+      
+      // 關鍵修復：輸入為空時，直接清空表格，不生成任何行
+      if (input === '') {
+        table.innerHTML = '';
+        // 清空對應的儲存數據，避免估分時使用舊數據
+        window[tableId + 'Data'] = [];
+        return;
+      }
+
+      let rows = rawInput.split('\n').map(row => row.split('\t'));
       table.innerHTML = '';
 
       if (rows.length === 0) return;
 
-      // 測驗區：過濾掉全為無效數字（缺考）的行，這些行不顯示、不參與排序
       if (tableId === 'rightTable') {
         rows = rows.filter(row => {
           return row.some(cell => {
@@ -56,7 +99,6 @@
       }
 
       const dataWithSum = rows.map((cols, idx) => {
-        // 只計算有效數字，空白或非數字忽略（不當作0）
         const nums = cols.map(cell => {
           const trimmed = cell.trim();
           if (trimmed === '') return null;
@@ -84,18 +126,18 @@
       }
 
       window[tableId + 'Data'] = sorted;
-
       const renderData = shouldSort ? sorted : dataWithSum;
-
-      // 標題列：以原始 rows（過濾後的第一行）的長度為準
       const maxCols = rows[0] ? rows[0].length : 0;
+
       const header = document.createElement('tr');
       header.innerHTML = `<th>序號</th>${Array(maxCols).fill(0).map((_, i) => `<th>欄${i + 1}</th>`).join('')}<th>加總</th><th>名次</th>`;
       table.appendChild(header);
 
       renderData.forEach((row, i) => {
         const tr = document.createElement('tr');
-
+        if (tableId === 'leftTable' && isAbsent(row.index)) {
+          tr.className = 'absent-row';
+        }
         const indexTd = document.createElement('td');
         indexTd.textContent = i + 1;
         indexTd.className = 'index-cell';
@@ -122,12 +164,19 @@
       });
     }
 
+    document.getElementById('rightInput').addEventListener('input', () => {
+      updateAbsentIndices();
+      parseAndRender('rightInput', 'rightTable', true, false);
+      parseAndRender('leftInput', 'leftTable', false, true);
+    });
+
     document.getElementById('leftInput').addEventListener('input', () =>
       parseAndRender('leftInput', 'leftTable', false, true)
     );
-    document.getElementById('rightInput').addEventListener('input', () =>
-      parseAndRender('rightInput', 'rightTable', true, false)
-    );
+
+    updateAbsentIndices();
+    parseAndRender('leftInput', 'leftTable', false, true);
+    parseAndRender('rightInput', 'rightTable', true, false);
 
     function estimateScore() {
       const rank = parseInt(document.getElementById('rankInput').value);
@@ -136,7 +185,6 @@
         document.getElementById('estimateResult').textContent = '請輸入有效的排名';
         return;
       }
-      // 排名超出測驗區實際有效人數（過濾後的行數）時無法估分
       if (rank < 1 || rank > rightData.length) {
         document.getElementById('estimateResult').textContent = '當前無法估分：所估分數如為第一名/最後一名需按科組指引處理';
         return;
