@@ -36,14 +36,33 @@
   <script>
     function parseAndRender(inputId, tableId, shouldSort = false, useTieRanking = false) {
       const input = document.getElementById(inputId).value.trim();
-      const rows = input.split('\n').map(row => row.split('\t'));
+      let rows = input.split('\n').map(row => row.split('\t'));
       const table = document.getElementById(tableId);
       table.innerHTML = '';
 
       if (rows.length === 0) return;
 
+      // 測驗區：過濾掉全為無效數字（缺考）的行，這些行不顯示、不參與排序
+      if (tableId === 'rightTable') {
+        rows = rows.filter(row => {
+          return row.some(cell => {
+            const trimmed = cell.trim();
+            if (trimmed === '') return false;
+            const num = Number(trimmed);
+            return !isNaN(num);
+          });
+        });
+        if (rows.length === 0) return;
+      }
+
       const dataWithSum = rows.map((cols, idx) => {
-        const nums = cols.map(Number).filter(n => !isNaN(n));
+        // 只計算有效數字，空白或非數字忽略（不當作0）
+        const nums = cols.map(cell => {
+          const trimmed = cell.trim();
+          if (trimmed === '') return null;
+          const num = Number(trimmed);
+          return isNaN(num) ? null : num;
+        }).filter(n => n !== null);
         const sum = nums.reduce((a, b) => a + b, 0);
         return { index: idx, cols, sum };
       });
@@ -64,14 +83,14 @@
         sorted.forEach((row, i) => row.rank = i + 1);
       }
 
-      // 儲存供估分使用
       window[tableId + 'Data'] = sorted;
 
       const renderData = shouldSort ? sorted : dataWithSum;
 
-      // 標題列
+      // 標題列：以原始 rows（過濾後的第一行）的長度為準
+      const maxCols = rows[0] ? rows[0].length : 0;
       const header = document.createElement('tr');
-      header.innerHTML = `<th>序號</th>${rows[0].map((_, i) => `<th>欄${i + 1}</th>`).join('')}<th>加總</th><th>名次</th>`;
+      header.innerHTML = `<th>序號</th>${Array(maxCols).fill(0).map((_, i) => `<th>欄${i + 1}</th>`).join('')}<th>加總</th><th>名次</th>`;
       table.appendChild(header);
 
       renderData.forEach((row, i) => {
@@ -82,11 +101,11 @@
         indexTd.className = 'index-cell';
         tr.appendChild(indexTd);
 
-        row.cols.forEach(cell => {
+        for (let j = 0; j < maxCols; j++) {
           const td = document.createElement('td');
-          td.textContent = cell;
+          td.textContent = j < row.cols.length ? row.cols[j] : '';
           tr.appendChild(td);
-        });
+        }
 
         const sumTd = document.createElement('td');
         sumTd.textContent = row.sum;
@@ -106,7 +125,6 @@
     document.getElementById('leftInput').addEventListener('input', () =>
       parseAndRender('leftInput', 'leftTable', false, true)
     );
-
     document.getElementById('rightInput').addEventListener('input', () =>
       parseAndRender('rightInput', 'rightTable', true, false)
     );
@@ -118,19 +136,20 @@
         document.getElementById('estimateResult').textContent = '請輸入有效的排名';
         return;
       }
-
+      // 排名超出測驗區實際有效人數（過濾後的行數）時無法估分
+      if (rank < 1 || rank > rightData.length) {
+        document.getElementById('estimateResult').textContent = '當前無法估分：所估分數如為第一名/最後一名需按科組指引處理';
+        return;
+      }
       const prev = rightData.find(r => r.rank === rank - 1);
       const next = rightData.find(r => r.rank === rank + 1);
       if (!prev || !next) {
         document.getElementById('estimateResult').textContent = '當前無法估分：所估分數如為第一名/最後一名需按科組指引處理';
         return;
       }
-
       const avg = (prev.sum + next.sum) / 2;
       document.getElementById('estimateResult').textContent = `估分：${avg.toFixed(2)}`;
     }
   </script>
 </body>
 </html>
-
-
