@@ -31,7 +31,7 @@
     <table id="rightTable"></table>
     <div class="controls">
       <button onclick="estimateScore()">估分</button>
-      <input type="number" id="rankInput" placeholder="輸入該生的練習總分排名">
+      <input type="text" id="rankInput" inputmode="numeric" placeholder="練習總分排名">
       <div id="estimateResult"></div>
     </div>
   </div>
@@ -73,10 +73,8 @@
       const input = rawInput.trim();
       const table = document.getElementById(tableId);
       
-      // 關鍵修復：輸入為空時，直接清空表格，不生成任何行
       if (input === '') {
         table.innerHTML = '';
-        // 清空對應的儲存數據，避免估分時使用舊數據
         window[tableId + 'Data'] = [];
         return;
       }
@@ -173,6 +171,15 @@
     document.getElementById('leftInput').addEventListener('input', () =>
       parseAndRender('leftInput', 'leftTable', false, true)
     );
+
+    // 排名輸入框：回車觸發估分
+    const rankInput = document.getElementById('rankInput');
+    rankInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        estimateScore();
+      }
+    });
 
     updateAbsentIndices();
     parseAndRender('leftInput', 'leftTable', false, true);
